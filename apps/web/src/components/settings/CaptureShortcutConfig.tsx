@@ -12,7 +12,7 @@ import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useState } from "react";
 import { getDesktopSnapShotBridge } from "../../lib/desktopSnapShot";
-import { resolveDiffThemeName } from "../../lib/diffRendering";
+import { GITHUB_DIFF_OPTIONS, resolveDiffThemeName } from "../../lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import { useRenderedAppearance } from "../../hooks/useTheme";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
@@ -184,6 +184,7 @@ export function CaptureShortcutConfig({
               <FileDiff
                 fileDiff={diff}
                 options={{
+                  ...GITHUB_DIFF_OPTIONS,
                   diffStyle: "unified",
                   theme: resolveDiffThemeName(resolvedTheme),
                   overflow: "wrap",

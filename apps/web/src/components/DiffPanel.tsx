@@ -56,6 +56,7 @@ import {
   buildFileDiffEntries,
   getDiffLineStat,
   getRenderablePatch,
+  GITHUB_DIFF_OPTIONS,
   resolveDiffThemeName,
   resolveFileDiffPath,
 } from "../lib/diffRendering";
@@ -72,7 +73,7 @@ import { useClientSettings, updateClientSettings } from "../hooks/useSettings";
 import { formatRelativeTimeLabel, formatShortTimestamp } from "../timestampFormat";
 import { DiffFilePathCopyButton } from "./DiffFilePathCopyButton";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
-import { DiffStatLabel } from "./chat/DiffStatLabel";
+import { DiffStatBlocks, DiffStatLabel } from "./chat/DiffStatLabel";
 import { AnnotatableCodeView, type AnnotatableCodeViewHandle } from "./diffs/AnnotatableCodeView";
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { FileExplorerPane } from "./files/FileExplorerPane";
@@ -1519,21 +1520,22 @@ export default function DiffPanel({
                         />
                       );
                     }}
-                    {...(lazySource
-                      ? {
-                          unsafeCSSExtra:
-                            "[data-additions-count], [data-deletions-count] { display: none; }",
-                          renderHeaderMetadata: (fileDiff: FileDiffMetadata) => {
-                            const stat = fileStats.get(resolveFileDiffPath(fileDiff));
-                            return stat ? (
-                              <DiffStatLabel
-                                additions={stat.additions}
-                                deletions={stat.deletions}
-                              />
-                            ) : null;
-                          },
-                        }
-                      : {})}
+                    unsafeCSSExtra="[data-additions-count], [data-deletions-count] { display: none; }"
+                    renderHeaderMetadata={(fileDiff: FileDiffMetadata) => {
+                      const stat =
+                        fileStats.get(resolveFileDiffPath(fileDiff)) ??
+                        (lazySource ? undefined : getDiffLineStat([fileDiff]));
+                      return stat ? (
+                        <span className="flex items-center gap-2">
+                          <DiffStatLabel
+                            additions={stat.additions}
+                            deletions={stat.deletions}
+                            layout="inline"
+                          />
+                          <DiffStatBlocks additions={stat.additions} deletions={stat.deletions} />
+                        </span>
+                      ) : null;
+                    }}
                     onFileCollapsedChange={setDiffFileCollapsed}
                     renderHeaderPrefix={(fileDiff, fileKey, collapsed) => {
                       return (
@@ -1552,8 +1554,8 @@ export default function DiffPanel({
                       );
                     }}
                     options={{
+                      ...GITHUB_DIFF_OPTIONS,
                       diffStyle: diffLayout === "split" ? "split" : "unified",
-                      lineDiffType: "none",
                       overflow: wordWrap ? "wrap" : "scroll",
                       theme: resolveDiffThemeName(resolvedTheme),
                       preferredHighlighter: PREFERRED_HIGHLIGHTER,

@@ -1,6 +1,8 @@
 import type { CodeViewScrollTarget } from "@pierre/diffs";
 import { useEffect, useState } from "react";
 
+import { DIFF_HEADER_HEIGHT } from "./diffMetrics";
+
 interface Viewer {
   getHeight(): number;
   getScrollHeight(): number;
@@ -33,8 +35,9 @@ export function createCodeViewScrollRestore() {
       loadMore?.();
       return;
     }
-    // Pierre lands an unclamped position target one sticky header (32px) above it.
-    const position = pending + 32 <= maxScrollTop ? pending + 32 : maxScrollTop;
+    // Pierre lands an unclamped position target one sticky header above it.
+    const position =
+      pending + DIFF_HEADER_HEIGHT <= maxScrollTop ? pending + DIFF_HEADER_HEIGHT : maxScrollTop;
     pending = null;
     if (position > 0) handle.scrollTo({ type: "position", position });
   };

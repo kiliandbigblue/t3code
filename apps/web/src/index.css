@@ -2331,6 +2331,24 @@ code {
   --diff-deletion: var(--destructive);
   --diff-addition-foreground: light-dark(var(--color-emerald-700), var(--color-emerald-400));
   --diff-deletion-foreground: light-dark(var(--color-red-700), var(--color-red-400));
+
+  /* GitHub's Primer diff tokens (@primer/primitives diffBlob-*), light and dark default. */
+  --diff-canvas: light-dark(#ffffff, #0d1117);
+  --diff-canvas-foreground: light-dark(#1f2328, #f0f6fc);
+  --diff-muted-foreground: light-dark(#59636e, #9198a1);
+  --diff-border: light-dark(#d1d9e0, #3d444d);
+  --diff-empty: light-dark(#f6f8fa, #151b23);
+  --diff-addition-line: light-dark(#dafbe1, #2ea04326);
+  --diff-addition-number: light-dark(#aceebb, #3fb9504d);
+  --diff-addition-word: light-dark(#aceebb, #2ea04366);
+  --diff-deletion-line: light-dark(#ffebe9, #f851491a);
+  --diff-deletion-number: light-dark(#ffcecb, #f851494d);
+  --diff-deletion-word: light-dark(#ffcecb, #f8514966);
+  --diff-hunk-line: light-dark(#ddf4ff, #388bfd1a);
+  --diff-hunk-number: light-dark(#b6e3ff, #0c2d6b);
+  --diff-hunk-number-hover: light-dark(#0969da, #1f6feb);
+  --diff-stat-addition: light-dark(#1f883d, #238636);
+  --diff-stat-deletion: light-dark(#cf222e, #da3633);
 }
 
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
@@ -2356,6 +2374,20 @@ code {
   --trees-git-added-color-override: var(--diff-addition);
   --trees-git-deleted-color-override: var(--diff-deletion);
   --trees-git-untracked-color-override: var(--diff-addition);
+  --diff-addition-line: color-mix(in srgb, var(--diff-addition) 15%, transparent);
+  --diff-addition-number: color-mix(in srgb, var(--diff-addition) 30%, transparent);
+  --diff-addition-word: color-mix(in srgb, var(--diff-addition) 40%, transparent);
+  --diff-deletion-line: color-mix(in srgb, var(--diff-deletion) 15%, transparent);
+  --diff-deletion-number: color-mix(in srgb, var(--diff-deletion) 30%, transparent);
+  --diff-deletion-word: color-mix(in srgb, var(--diff-deletion) 40%, transparent);
+  --diff-stat-addition: var(--diff-addition);
+  --diff-stat-deletion: var(--diff-deletion);
+}
+
+/* Diffs sit on GitHub's canvas whatever the app palette, as a file card on github.com does. */
+.diff-render-surface {
+  --code-background: var(--diff-canvas);
+  --code-foreground: var(--diff-canvas-foreground);
 }
 
 .diff-render-surface diffs-container {
@@ -2367,13 +2399,13 @@ code {
 }
 
 /* Pierre's find panel is a sibling of the diff containers, so it misses their theme tokens.
-   The top inset clears the 32px sticky file header and its line counts. */
+   The top inset clears the 40px sticky file header and its line counts. */
 .diff-render-surface > [data-search-panel] {
   --diffs-search-panel-bg: var(--popover);
   --diffs-search-panel-fg: var(--popover-foreground);
   --diffs-search-panel-modified: var(--primary);
   --diffs-header-font-fallback: var(--font-sans);
-  --diffs-search-panel-inset-top: 40px;
+  --diffs-search-panel-inset-top: 48px;
 }
 
 /* Pierre's file renderer owns its own surface tokens. Keep the root of a file

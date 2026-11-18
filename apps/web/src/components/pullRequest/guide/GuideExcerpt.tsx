@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useRenderedAppearance } from "~/hooks/useTheme";
 import {
   getRenderablePatch,
+  GITHUB_DIFF_OPTIONS,
   resolveDiffThemeName,
   resolveFileDiffPreviousPath,
 } from "~/lib/diffRendering";
@@ -260,8 +261,8 @@ function ExcerptDiff({
   };
 
   const options = {
+    ...GITHUB_DIFF_OPTIONS,
     diffStyle: "unified" as const,
-    lineDiffType: "none" as const,
     overflow: "scroll" as const,
     theme: resolveDiffThemeName(resolvedTheme),
     themeType: resolvedTheme,
@@ -277,7 +278,7 @@ function ExcerptDiff({
   };
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-border/60">
+    <div className="diff-render-surface min-w-0 overflow-hidden rounded-lg border border-border/60">
       <FileDiff<ExcerptAnnotation>
         fileDiff={slice.fileDiff}
         options={options}

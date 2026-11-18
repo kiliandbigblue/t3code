@@ -86,6 +86,7 @@ import {
   fnv1a32,
   getDiffLineStat,
   getRenderablePatch,
+  GITHUB_DIFF_OPTIONS,
   resolveDiffThemeName,
   resolveFileDiffPath,
   resolveFileDiffPreviousPath,
@@ -139,6 +140,7 @@ import {
   toViewerSide,
 } from "./PullRequestReviewAnnotation";
 import { pullRequestCompletionScope } from "./PullRequestMarkdownTextarea";
+import { DiffStatBlocks } from "../chat/DiffStatLabel";
 import { getFileViewedRange, isLineInFileDiff } from "./pullRequestDiff.logic";
 import { PullRequestDiffStat, PullRequestMetaLine } from "./pullRequestPresentation";
 import { PullRequestDiffUnavailableState } from "./PullRequestDiffUnavailableState";
@@ -1162,19 +1164,22 @@ function PullRequestCodeTab({
         fileKey={item.id}
         path={path}
         stat={
-          <PullRequestDiffStat
-            additions={additions}
-            deletions={deletions}
-            className="font-mono text-2xs"
-          />
+          <span className="flex items-center gap-2">
+            <PullRequestDiffStat
+              additions={additions}
+              deletions={deletions}
+              className="font-mono text-2xs"
+            />
+            <DiffStatBlocks additions={additions} deletions={deletions} />
+          </span>
         }
       />
     );
   };
 
   const diffViewOptions = {
+    ...GITHUB_DIFF_OPTIONS,
     diffStyle: diffLayout === "split" ? ("split" as const) : ("unified" as const),
-    lineDiffType: "none" as const,
     overflow: wordWrap ? ("wrap" as const) : ("scroll" as const),
     theme: resolveDiffThemeName(resolvedTheme),
     preferredHighlighter: PREFERRED_HIGHLIGHTER,

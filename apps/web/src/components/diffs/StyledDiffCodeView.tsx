@@ -11,6 +11,7 @@ import type { Ref } from "react";
 
 import { DIFF_SURFACE_THEME_UNSAFE_CSS } from "~/lib/diffRendering";
 import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
+import { DIFF_HEADER_HEIGHT } from "./diffMetrics";
 
 export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 /* A 1fr track's automatic minimum grows with the currently mounted lines. In split
@@ -20,8 +21,10 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   --diffs-code-grid: var(--diffs-grid-number-column-width) minmax(0, 1fr);
 }
 
-/* Translucent find matches keep the syntax colours under them. */
+/* GitHub sets code at 12px; one step under the code size setting keeps that setting in charge. */
 :host {
+  --diffs-font-size: calc(var(--font-size-code, 13px) - 1px);
+  /* Translucent find matches keep the syntax colours under them. */
   --diffs-bg-search-match-override: light-dark(#ff963288, #ff963266);
   --diffs-bg-search-match-current-override: color-mix(
     in lab,
@@ -94,60 +97,75 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   color: var(--code-foreground) !important;
 }
 
+/* GitHub's file card header: a muted bar with a hairline under it, the path in mono. */
 [data-diffs-header] {
   position: sticky !important;
   top: 0;
   z-index: 4;
-  background-color: var(--code-background) !important;
+  background-color: var(--diff-empty) !important;
   border-bottom-color: transparent !important;
+  box-shadow: inset 0 -1px var(--diff-border);
   align-items: center !important;
   font-family: var(--font-sans) !important;
   font-size: 12px !important;
   line-height: 1 !important;
   /* Collapsed items are never remeasured: the painted header must match diffHeaderHeight.
      Center controls in that height instead of adding padding to their intrinsic height. */
-  height: 32px !important;
-  min-height: 32px !important;
+  height: 40px !important;
+  min-height: 40px !important;
   padding-block: 0 !important;
-  padding-inline: 8px 12px !important;
+  padding-inline: 8px 16px !important;
 }
 
 [data-diffs-header]:hover {
   /* A native scrollbar gutter cannot be painted by descendants. Use an inset edge cue instead
      of a full-width band that would look accidentally clipped at the gutter. */
-  background-color: var(--code-background) !important;
-  box-shadow: inset 3px 0 color-mix(in srgb, var(--code-foreground) 24%, transparent);
+  background-color: var(--diff-empty) !important;
+  box-shadow:
+    inset 0 -1px var(--diff-border),
+    inset 3px 0 color-mix(in srgb, var(--code-foreground) 24%, transparent);
 }
 
-/* Hunk separators are the way to the unchanged lines between hunks. They keep the library's
-   layout, with the expand button in its own cell, but sit one step off the code surface so they
-   read as quiet controls; hover brings them forward. */
+/* GitHub's hunk row: the @@ header on a blue tint, its expand arrows in a deeper blue cell that
+   fills on hover. Exact and margin-free: the virtualizer places rows from hunkSeparatorHeight. */
 :is([data-separator="line-info"], [data-separator="line-info-basic"]) {
-  /* Exact and margin-free: the virtualizer places rows from hunkSeparatorHeight below. */
-  height: 24px !important;
+  height: 28px !important;
   margin-block: 0 !important;
-  --diffs-bg-separator: color-mix(in srgb, var(--code-background) 97%, var(--code-foreground));
+  --diffs-bg-separator: var(--diff-hunk-line);
+  background-color: var(--diff-hunk-line) !important;
+}
+
+:is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-separator-wrapper] {
+  background-color: transparent !important;
 }
 
 :is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-separator-content] {
-  color: color-mix(in srgb, var(--code-foreground) 50%, var(--code-background)) !important;
-  font-family: var(--font-sans) !important;
-  font-size: 11px !important;
+  /* The gutter's copy of the row overlays the code cell; one tint, not two stacked. */
+  background-color: transparent !important;
+  color: var(--diff-muted-foreground) !important;
+  font-family: var(--font-mono) !important;
+  font-size: var(--diffs-font-size) !important;
   text-decoration: none !important;
+  white-space: pre !important;
+}
+
+/* The header lives in the gutter's copy of the row, whose text cell is only as wide as what is
+   left of the gutter; it runs on over the code cell, which the code view clips. */
+:is([data-separator="line-info"], [data-separator="line-info-basic"])
+  :is([data-separator-content], [data-unmodified-lines]) {
+  overflow: visible !important;
 }
 
 :is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-expand-button] {
-  color: color-mix(in srgb, var(--code-foreground) 50%, var(--code-background)) !important;
+  color: var(--code-foreground) !important;
+  background-color: var(--diff-hunk-number) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
 }
 
-:is([data-separator="line-info"], [data-separator="line-info-basic"])[data-expand-index]
-  :is([data-separator-content], [data-expand-button]):hover {
-  color: var(--code-foreground) !important;
-  background-color: color-mix(
-    in srgb,
-    var(--code-background) 92%,
-    var(--code-foreground)
-  ) !important;
+:is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-expand-button]:hover {
+  color: #ffffff !important;
+  background-color: var(--diff-hunk-number-hover) !important;
 }
 
 [data-diffs-header] [data-header-content] {
@@ -184,7 +202,8 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 [data-title] {
   cursor: pointer;
   transition: color 120ms ease;
-  font-family: var(--font-sans) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 12px !important;
 }
 
 [data-title]:hover {
@@ -242,8 +261,8 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
         {...(viewerRef ? { ref: viewerRef } : {})}
         className={
           className
-            ? `diff-render-surface [--code-background:var(--background)] outline-none ${className}`
-            : "diff-render-surface [--code-background:var(--background)] outline-none"
+            ? `diff-render-surface outline-none ${className}`
+            : "diff-render-surface outline-none"
         }
         options={{
           ...options,
@@ -251,8 +270,8 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
             ? `${DIFF_VIEW_UNSAFE_CSS}\n${unsafeCSSExtra}`
             : DIFF_VIEW_UNSAFE_CSS,
           itemMetrics: {
-            diffHeaderHeight: 32,
-            hunkSeparatorHeight: 24,
+            diffHeaderHeight: DIFF_HEADER_HEIGHT,
+            hunkSeparatorHeight: 28,
             // Zero both spacing and paddingTop; Pierre's expanded-file fallback otherwise adds an 8px header
             // gap.
             spacing: 0,

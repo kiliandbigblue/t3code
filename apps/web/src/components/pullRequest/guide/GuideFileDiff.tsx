@@ -6,7 +6,7 @@ import {
 import { FileDiff } from "@pierre/diffs/react";
 
 import { useRenderedAppearance } from "~/hooks/useTheme";
-import { resolveDiffThemeName } from "~/lib/diffRendering";
+import { GITHUB_DIFF_OPTIONS, resolveDiffThemeName } from "~/lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "~/lib/syntaxHighlighting";
 
 import { DIFF_VIEW_UNSAFE_CSS } from "../../diffs/StyledDiffCodeView";
@@ -23,8 +23,8 @@ export function GuideFileDiff({
   // as a patch, so this view expands a copy of its own.
   const expandable = cloneFileDiffMetadata(file);
   const options = {
+    ...GITHUB_DIFF_OPTIONS,
     diffStyle: "unified" as const,
-    lineDiffType: "none" as const,
     overflow: "scroll" as const,
     disableFileHeader: true,
     theme: resolveDiffThemeName(resolvedTheme),
@@ -34,7 +34,7 @@ export function GuideFileDiff({
     loadDiffFiles,
   };
   return (
-    <div className="border-t border-border/60">
+    <div className="diff-render-surface border-t border-border/60">
       <FileDiff fileDiff={expandable} options={options} />
     </div>
   );

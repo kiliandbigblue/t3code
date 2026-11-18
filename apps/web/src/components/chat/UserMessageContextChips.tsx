@@ -21,6 +21,7 @@ import {
 } from "../../types";
 import {
   getRenderablePatch,
+  GITHUB_DIFF_OPTIONS,
   resolveDiffThemeName,
   resolveFileDiffPath,
 } from "../../lib/diffRendering";
@@ -638,6 +639,7 @@ function UserMessageReviewCommentCard({ comment }: { comment: ReviewCommentConte
               key={resolveFileDiffPath(fileDiff)}
               fileDiff={fileDiff}
               options={{
+                ...GITHUB_DIFF_OPTIONS,
                 collapsed: false,
                 diffStyle: "unified",
                 theme: resolveDiffThemeName(renderedAppearance),

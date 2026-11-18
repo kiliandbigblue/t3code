@@ -48,3 +48,35 @@ export const DiffStatLabel = memo(function DiffStatLabel(props: {
     </span>
   );
 });
+
+export type DiffStatBlock = "addition" | "deletion" | "neutral";
+
+/** GitHub's five squares: one per changed line up to five, green for the share added. */
+export function diffStatBlocks(additions: number, deletions: number): DiffStatBlock[] {
+  const total = additions + deletions;
+  const colored = Math.min(5, total);
+  const added = total === 0 ? 0 : Math.round((additions / total) * colored);
+  return Array.from({ length: 5 }, (_, index) =>
+    index < added ? "addition" : index < colored ? "deletion" : "neutral",
+  );
+}
+
+const BLOCK_CLASS: Record<DiffStatBlock, string> = {
+  addition: "bg-[var(--diff-stat-addition)]",
+  deletion: "bg-[var(--diff-stat-deletion)]",
+  neutral: "bg-[var(--diff-border)]",
+};
+
+export const DiffStatBlocks = memo(function DiffStatBlocks(props: {
+  additions: number;
+  deletions: number;
+}) {
+  return (
+    <span aria-hidden="true" className="inline-flex shrink-0 gap-px">
+      {diffStatBlocks(props.additions, props.deletions).map((block, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- the five squares are positional
+        <span key={index} className={cn("size-2 rounded-xs", BLOCK_CLASS[block])} />
+      ))}
+    </span>
+  );
+});
