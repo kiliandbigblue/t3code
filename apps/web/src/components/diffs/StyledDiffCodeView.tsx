@@ -140,20 +140,33 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 }
 
 :is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-separator-content] {
-  /* The gutter's copy of the row overlays the code cell; one tint, not two stacked. */
   background-color: transparent !important;
   color: var(--diff-muted-foreground) !important;
   font-family: var(--font-mono) !important;
   font-size: var(--diffs-font-size) !important;
   text-decoration: none !important;
+  min-width: 0 !important;
+}
+
+:is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-unmodified-lines] {
   white-space: pre !important;
 }
 
-/* The header lives in the gutter's copy of the row, whose text cell is only as wide as what is
-   left of the gutter; it runs on over the code cell, which the code view clips. */
-:is([data-separator="line-info"], [data-separator="line-info-basic"])
-  :is([data-separator-content], [data-unmodified-lines]) {
-  overflow: visible !important;
+/* Pierre draws the row's text in the gutter cell, where it can only overflow past its column
+   (split columns are display: contents, so nothing clips them). The header goes in the code
+   cell's copy of the row instead, which is the column's width; the gutter keeps the arrows. */
+[data-gutter] :is([data-separator="line-info"], [data-separator="line-info-basic"])
+  [data-separator-content],
+[data-content] :is([data-separator="line-info"], [data-separator="line-info-basic"])
+  [data-expand-button] {
+  display: none !important;
+}
+
+:is([data-unified], [data-deletions])
+  [data-content]
+  :is([data-separator="line-info"], [data-separator="line-info-basic"])
+  [data-separator-wrapper] {
+  display: flex !important;
 }
 
 :is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-expand-button] {
