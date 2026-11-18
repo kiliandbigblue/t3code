@@ -13,7 +13,11 @@ import { EMPTY_COMPOSER_CONTEXT_RECORDS } from "../composerContextPresentation";
 import { terminalThemeFromApp } from "../ThreadTerminalDrawer";
 import { useRenderedAppearance, useTheme } from "../../hooks/useTheme";
 import { DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
-import { resolveDiffThemeName, type DiffThemeName } from "../../lib/diffRendering";
+import {
+  GITHUB_DIFF_OPTIONS,
+  resolveDiffThemeName,
+  type DiffThemeName,
+} from "../../lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import { GhosttyTerminalSurface } from "~/terminal/ghostty/surface";
 
@@ -72,7 +76,12 @@ const DIFF_PREVIEW_PATCH = [
 function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
   return preloadPatchFile({
     patch: DIFF_PREVIEW_PATCH,
-    options: { diffStyle: "unified", theme, preferredHighlighter: PREFERRED_HIGHLIGHTER },
+    options: {
+      ...GITHUB_DIFF_OPTIONS,
+      diffStyle: "unified",
+      theme,
+      preferredHighlighter: PREFERRED_HIGHLIGHTER,
+    },
   }).then((results) => results.map((result) => result.prerenderedHTML));
 }
 

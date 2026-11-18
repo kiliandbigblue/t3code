@@ -1,5 +1,5 @@
 diff --git a/dist/editor/editor.js b/dist/editor/editor.js
-index b4c280390b52434f63fbe7916d81b150d9006fb4..cb7fb89a22c8adac9ea951b8767b5fd446347746 100644
+index b4c280390b52434f63fbe7916d81b150d9006fb4..9596bf4ea729ab407a711bf7aae684499f056833 100644
 --- a/dist/editor/editor.js
 +++ b/dist/editor/editor.js
 @@ -95,6 +95,7 @@ var Editor = class {
@@ -81,8 +81,7 @@ index b4c280390b52434f63fbe7916d81b150d9006fb4..cb7fb89a22c8adac9ea951b8767b5fd4
  		}
  		if (this.#selections !== void 0 || this.#matches !== void 0 || this.#markerRenderer !== void 0) {
  			this.#updateSelections(this.#selections ?? []);
-@@ -3369,7 +3388,8 @@ var Editor = class {
- 		});
+@@ -3370,6 +3389,7 @@ var Editor = class {
  		this.#searchPanel = searchPanel;
  		this.#retainSearchPanelFocus = false;
  		searchPanel.mount();
@@ -134,8 +133,22 @@ index 96d4fb137ea683b66381b1ce6e47e8708a89366c..13f2564897a5bf53a8f311300003b3ea
  	}
  	/**
  	* Re-measure the '0' character width against the font that is loaded right
+diff --git a/dist/layout/DiffLayout.js b/dist/layout/DiffLayout.js
+index 32cf5585c9ce2153c7fd9fa458d5d406010674b5..590877b7785f334a7f452f32411b9c76d20dda82 100644
+--- a/dist/layout/DiffLayout.js
++++ b/dist/layout/DiffLayout.js
+@@ -441,7 +441,8 @@ var DiffLayout = class {
+ 		const slotName = getHunkSeparatorSlotName(type, hunkIndex);
+ 		const chunked = rangeSize > expansionLineCount;
+ 		const expandIndex = isExpandable ? hunkIndex : void 0;
+-		const content = typeof collapsedLines === "number" ? i18n.t("unmodifiedLines", { count: collapsedLines }) : i18n.t("unknownUnmodifiedLines");
++		// t3code: a hunk row reads its @@ header with git's function context, as GitHub's does; the row after the last hunk is blank.
++		const content = hunkSpecs?.trimEnd() ?? (isLastHunk ? "" : typeof collapsedLines === "number" ? i18n.t("unmodifiedLines", { count: collapsedLines }) : i18n.t("unknownUnmodifiedLines"));
+ 		const separator = () => createSeparator({
+ 			type: hunkSeparators,
+ 			content,
 diff --git a/dist/utils/parsePatchFiles.js b/dist/utils/parsePatchFiles.js
-index 48568bd..f27123f 100644
+index 48568bd6f669ba4826de17ba03caad466e1f0000..f27123f7c812c728ee8393792665ba288141771c 100644
 --- a/dist/utils/parsePatchFiles.js
 +++ b/dist/utils/parsePatchFiles.js
 @@ -339,7 +339,7 @@ function parsePatchFiles(data, options = {}) {

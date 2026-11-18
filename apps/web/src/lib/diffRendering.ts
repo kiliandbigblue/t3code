@@ -4,12 +4,11 @@ import type { FileDiffMetadata } from "@pierre/diffs/types";
 import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../i18n/messages";
-import { READABLE_LIGHT_THEME_NAME } from "./readableSyntaxTheme";
 
-// Light mode uses a darker pierre-light so syntax stays readable on every code surface.
+// GitHub's own syntax palettes, so code reads as it does on github.com in both appearances.
 export const DIFF_THEME_NAMES = {
-  light: READABLE_LIGHT_THEME_NAME,
-  dark: "pierre-dark",
+  light: "github-light-default",
+  dark: "github-dark-default",
 } as const;
 
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];
@@ -17,6 +16,17 @@ export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NA
 export function resolveDiffThemeName(theme: "light" | "dark"): DiffThemeName {
   return DIFF_THEME_NAMES[theme];
 }
+
+/**
+ * How every diff surface draws, as github.com does: + and − signs, word highlights on paired
+ * lines, and hunk rows with their @@ header and expand arrows, 20 lines a click.
+ */
+export const GITHUB_DIFF_OPTIONS = {
+  diffIndicators: "classic",
+  lineDiffType: "word-alt",
+  hunkSeparators: "line-info-basic",
+  expansionLineCount: 20,
+} as const;
 
 const FNV_OFFSET_BASIS_32 = 0x811c9dc5;
 const FNV_PRIME_32 = 0x01000193;
@@ -294,6 +304,7 @@ export function buildFileDiffEntries(files: ReadonlyArray<FileDiffMetadata>) {
   });
 }
 
+// Tints are GitHub's Primer diff tokens, defined in index.css (--diff-*-line and friends).
 export const DIFF_SURFACE_THEME_UNSAFE_CSS = `
 [data-diffs-header],
 [data-diff],
@@ -308,54 +319,42 @@ export const DIFF_SURFACE_THEME_UNSAFE_CSS = `
   --diffs-token-light-bg: transparent;
   --diffs-token-dark-bg: transparent;
 
-  /* Gutter, context, and row tints all derive from the code surface the diff
-     body sits on. Mixing from the canvas leaves the gutter looking unthemed
-     when a palette separates the two. */
-  --diffs-bg-context-override: color-mix(in srgb, var(--code-background) 97%, var(--code-foreground));
+  --diffs-bg-context-override: var(--code-background);
   --diffs-bg-hover-override: color-mix(in srgb, var(--code-background) 94%, var(--code-foreground));
-  --diffs-bg-separator-override: color-mix(
-    in srgb,
-    var(--code-background) 95%,
-    var(--code-foreground)
-  );
-  --diffs-bg-buffer-override: color-mix(in srgb, var(--code-background) 90%, var(--code-foreground));
+  --diffs-bg-separator-override: var(--diff-hunk-line);
+  --diffs-bg-buffer-override: var(--diff-empty);
+  --diffs-fg-number-override: var(--diff-muted-foreground);
+  --diffs-fg-number-addition-override: var(--code-foreground);
+  --diffs-fg-number-deletion-override: var(--code-foreground);
 
-  --diffs-bg-addition-override: light-dark(
-    color-mix(in srgb, var(--code-background) calc(50% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-addition)),
-    color-mix(in srgb, var(--code-background) calc(70% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-addition))
-  );
-  --diffs-bg-addition-number-override: light-dark(
-    color-mix(in srgb, var(--code-background) calc(35% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-addition)),
-    color-mix(in srgb, var(--code-background) calc(60% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-addition))
-  );
-  --diffs-bg-addition-hover-override: color-mix(in srgb, var(--code-background) 85%, var(--diff-addition));
+  --diffs-bg-addition-override: var(--diff-addition-line);
+  --diffs-bg-addition-number-override: var(--diff-addition-number);
+  --diffs-bg-addition-hover-override: var(--diff-addition-line);
   /* Pierre resolves emphasis on the host, before the diff's overrides can inherit. */
-  /* Light emphasis stays above t3-light's readable syntax luminance floor. */
-  --diffs-bg-addition-emphasis: light-dark(
-    rgb(from var(--diffs-addition-base) r g b / 15%),
-    rgb(from var(--diffs-addition-base) r g b / calc(20% + var(--appearance-contrast-boost, 0%) / 4))
-  );
+  --diffs-bg-addition-emphasis: var(--diff-addition-word);
 
-  --diffs-bg-deletion-override: light-dark(
-    color-mix(in srgb, var(--code-background) calc(50% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-deletion)),
-    color-mix(in srgb, var(--code-background) calc(70% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-deletion))
-  );
-  --diffs-bg-deletion-number-override: light-dark(
-    color-mix(in srgb, var(--code-background) calc(35% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-deletion)),
-    color-mix(in srgb, var(--code-background) calc(60% - var(--appearance-contrast-boost, 0%) / 4), var(--diff-deletion))
-  );
-  --diffs-bg-deletion-hover-override: color-mix(
-    in srgb,
-    var(--code-background) 85%,
-    var(--diff-deletion)
-  );
-  --diffs-bg-deletion-emphasis: light-dark(
-    rgb(from var(--diffs-deletion-base) r g b / 15%),
-    rgb(from var(--diffs-deletion-base) r g b / calc(20% + var(--appearance-contrast-boost, 0%) / 4))
-  );
+  --diffs-bg-deletion-override: var(--diff-deletion-line);
+  --diffs-bg-deletion-number-override: var(--diff-deletion-number);
+  --diffs-bg-deletion-hover-override: var(--diff-deletion-line);
+  --diffs-bg-deletion-emphasis: var(--diff-deletion-word);
 
   background-color: var(--diffs-bg) !important;
   color: var(--code-foreground) !important;
+}
+
+/* Pierre mixes these targets toward the canvas; GitHub paints its tokens as they are. */
+:is([data-line], [data-no-newline], [data-column-number], [data-gutter-buffer])[data-line-type^="change-"] {
+  --mix-light: 0%;
+  --mix-dark: 0%;
+}
+
+/* The side a change has no line on is GitHub's flat muted fill, not a hatch. */
+[data-content-buffer] {
+  background-image: none !important;
+  background-color: var(--diff-empty) !important;
+}
+[data-gutter-buffer="buffer"] {
+  --diffs-line-bg: var(--diff-empty) !important;
 }
 
 /* The library's change-icon colors are tuned for dark canvases; light mode takes the app's darker tokens. */
