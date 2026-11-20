@@ -18,7 +18,6 @@ import {
   CheckIcon,
   ChevronDownIcon,
   Columns2Icon,
-  FlaskConicalOffIcon,
   FolderTreeIcon,
   PilcrowIcon,
   Rows3Icon,
@@ -48,8 +47,9 @@ import {
   useDiffPanelStore,
 } from "../diffPanelStore";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { isTestChangedFile } from "@t3tools/shared/changedFileKind";
-import { useHideTestFiles } from "./diffs/useHideTestFiles";
+import { filterChangedFiles } from "./diffs/changedFileFilter.logic";
+import { HideChangedFilesToggles } from "./diffs/HideChangedFilesToggles";
+import { useHiddenChangedFileGroups } from "./diffs/useHiddenChangedFileGroups";
 import { useRenderedAppearance } from "../hooks/useTheme";
 import { useStableCallback } from "../hooks/useStableCallback";
 import {
@@ -242,7 +242,7 @@ export default function DiffPanel({
     false,
     Schema.Boolean,
   );
-  const [hideTestFiles, setHideTestFiles] = useHideTestFiles();
+  const [hiddenFileGroups, setFileGroupHidden] = useHiddenChangedFileGroups();
   const [baseRefQuery, setBaseRefQuery] = useState("");
   // The open commit menu keeps the list it opened with, so rows do not move under the pointer.
   const [openCommitMenu, setOpenCommitMenu] = useState<ReviewBranchCommitsResult | null>(null);
@@ -666,14 +666,14 @@ export default function DiffPanel({
     return { ...entry, fileKey: `${pathKey}:${occurrence}` };
   });
   const diffFileKeys = renderableFileEntries.map((file) => file.fileKey);
-  const testFileCount = renderableFiles.filter((file) =>
-    isTestChangedFile(resolveFileDiffPath(file)),
-  ).length;
-  // Hiding is display-only: lazy loading indexes into the full list. A requested file stays visible.
-  const isFileShown = (file: FileDiffMetadata) => {
-    const path = resolveFileDiffPath(file);
-    return !hideTestFiles || path === selectedFilePath || !isTestChangedFile(path);
-  };
+  // Hiding is display-only: lazy loading indexes into the full list.
+  const changedFileFilter = filterChangedFiles(
+    renderableFiles.map(resolveFileDiffPath),
+    hiddenFileGroups,
+    [selectedFilePath],
+  );
+  const isFileShown = (file: FileDiffMetadata) =>
+    changedFileFilter.isShown(resolveFileDiffPath(file));
   const shownFileEntries = renderableFileEntries.filter(({ fileDiff }) => isFileShown(fileDiff));
   const shownFileKeys = shownFileEntries.map((file) => file.fileKey);
   const defaultCollapsedDiffFileKeys = settings.diffFilesCollapsed
@@ -1312,31 +1312,7 @@ export default function DiffPanel({
             {diffIgnoreWhitespace ? gt("Show whitespace changes") : gt("Hide whitespace changes")}
           </TooltipPopup>
         </Tooltip>
-        {testFileCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Toggle
-                  aria-label={gt("Hide test files")}
-                  variant="ghost"
-                  size="sm"
-                  pressed={hideTestFiles}
-                  onPressedChange={(pressed) => setHideTestFiles(Boolean(pressed))}
-                />
-              }
-            >
-              <FlaskConicalOffIcon className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipPopup side="top">
-              {hideTestFiles
-                ? gt(
-                    "{count, plural, one {Show {count} hidden test file} other {Show {count} hidden test files}}",
-                    { count: testFileCount },
-                  )
-                : gt("Hide test files")}
-            </TooltipPopup>
-          </Tooltip>
-        )}
+        <HideChangedFilesToggles filter={changedFileFilter} onHiddenChange={setFileGroupHidden} />
         {diffFileKeys.length > 0 && (
           <Tooltip>
             <TooltipTrigger
