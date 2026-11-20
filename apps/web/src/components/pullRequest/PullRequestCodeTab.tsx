@@ -34,7 +34,6 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   Columns2Icon,
-  FlaskConicalOffIcon,
   FolderTreeIcon,
   InfoIcon,
   MessageSquareOffIcon,
@@ -78,7 +77,6 @@ import {
   canResolvePullRequestThread,
 } from "@t3tools/client-runtime/pull-request-editing";
 import { fileDiffRows } from "@t3tools/client-runtime/review-guide-tour";
-import { isTestChangedFile } from "@t3tools/shared/changedFileKind";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/mediaPreview";
 import { orderDiffFiles } from "./pullRequestFileOrder.logic";
 import {
@@ -113,7 +111,12 @@ import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
 import { FileExplorerPane } from "../files/FileExplorerPane";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
-import { useHideTestFiles } from "../diffs/useHideTestFiles";
+import { filterChangedFiles } from "../diffs/changedFileFilter.logic";
+import {
+  HiddenChangedFilesButtons,
+  HideChangedFilesToggles,
+} from "../diffs/HideChangedFilesToggles";
+import { useHiddenChangedFileGroups } from "../diffs/useHiddenChangedFileGroups";
 import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
@@ -467,7 +470,7 @@ function PullRequestCodeTab({
     false,
     Schema.Boolean,
   );
-  const [hideTestFiles, setHideTestFiles] = useHideTestFiles();
+  const [hiddenFileGroups, setFileGroupHidden] = useHiddenChangedFileGroups();
   const [selectedLines, setSelectedLines] = useState<{
     id: string;
     range: SelectedLineRange;
@@ -753,23 +756,18 @@ function PullRequestCodeTab({
         )
       : undefined;
   const pendingLinkPath = linkFile ? resolveFileDiffPath(linkFile) : null;
-  // The linked file stays shown past the test-file filter after the link settles.
+  // The linked file stays shown past the file filters after the link settles.
   const [revealedLink, setRevealedLink] = useState<{
     readonly scope: string;
     readonly path: string;
   } | null>(null);
   const linkPath = pendingLinkPath ?? (revealedLink?.scope === scopeKey ? revealedLink.path : null);
-  const testFileCount = loadedFiles.filter((file) =>
-    isTestChangedFile(resolveFileDiffPath(file)),
-  ).length;
-  // A requested file stays visible so a jump to a hidden test still lands.
-  const files = hideTestFiles
-    ? loadedFiles.filter((file) => {
-        const path = resolveFileDiffPath(file);
-        return path === revealRequest?.path || path === linkPath || !isTestChangedFile(path);
-      })
-    : loadedFiles;
-  const hiddenTestFileCount = loadedFiles.length - files.length;
+  const changedFileFilter = filterChangedFiles(
+    loadedFiles.map(resolveFileDiffPath),
+    hiddenFileGroups,
+    [revealRequest?.path, linkPath],
+  );
+  const files = loadedFiles.filter((file) => changedFileFilter.isShown(resolveFileDiffPath(file)));
   const filePaths = files.map((file) => resolveFileDiffPath(file));
   const omittedFileStats = new Map(
     loadedSlices.flatMap((slice) =>
@@ -1449,14 +1447,10 @@ function PullRequestCodeTab({
             })}
             {nextCursor === null ? "" : "+"}
           </span>
-          {hiddenTestFileCount > 0 ? (
-            <Button type="button" size="xs" variant="link" onClick={() => setHideTestFiles(false)}>
-              {gt(
-                "{count, plural, one {{count} test file hidden} other {{count} test files hidden}}",
-                { count: hiddenTestFileCount },
-              )}
-            </Button>
-          ) : null}
+          <HiddenChangedFilesButtons
+            filter={changedFileFilter}
+            onHiddenChange={setFileGroupHidden}
+          />
           {filesViewed.enabled && files.length > 0 ? (
             <span className="flex min-w-0 items-center gap-1 tabular-nums">
               <span className="shrink-0">
@@ -1687,26 +1681,7 @@ function PullRequestCodeTab({
             </TooltipPopup>
           </Tooltip>
         ) : null}
-        {testFileCount > 0 ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Toggle
-                  aria-label={gt("Hide test files")}
-                  variant="ghost"
-                  size="sm"
-                  pressed={hideTestFiles}
-                  onPressedChange={(pressed) => setHideTestFiles(Boolean(pressed))}
-                />
-              }
-            >
-              <FlaskConicalOffIcon className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipPopup side="top">
-              {hideTestFiles ? gt("Show test files") : gt("Hide test files")}
-            </TooltipPopup>
-          </Tooltip>
-        ) : null}
+        <HideChangedFilesToggles filter={changedFileFilter} onHiddenChange={setFileGroupHidden} />
         {fileKeys.length > 0 ? (
           <Tooltip>
             <TooltipTrigger

@@ -171,6 +171,7 @@ const detail: PullRequestDetailView = {
 
 function setup({ paged }: { paged: boolean }) {
   window.localStorage.removeItem("t3code.diffHideTestFiles");
+  window.localStorage.removeItem("t3code.diffHideGeneratedFiles");
   __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);
   mocks.paged = paged;
   mocks.diffCommits = [];
@@ -319,6 +320,7 @@ it("pages forward to a file asked for that is not loaded yet, then scrolls to it
   using _preferences = {
     [Symbol.dispose]() {
       window.localStorage.removeItem("t3code.diffHideTestFiles");
+      window.localStorage.removeItem("t3code.diffHideGeneratedFiles");
       __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);
     },
   };

@@ -43,8 +43,9 @@ const GENERATED_FILES = new Set([
   "uv.lock",
   "yarn.lock",
 ]);
+// Protobuf plugins stack suffixes (`.pb.validate.go`, `_grpc.pb.go`) and emit `_pb.ts` for JS/TS.
 const GENERATED_NAME =
-  /(\.generated\.|\.gen\.|\.g\.dart$|\.pb\.go$|_pb2(_grpc)?\.py$|\.pb\.(cc|h)$|\.min\.(js|css)$|\.(js|css)\.map$)/;
+  /(\.generated\.|\.gen\.|\.g\.dart$|\.pb(\.\w+)*\.go$|_pb2(_grpc)?\.pyi?$|\.pb\.(cc|h)$|_(grpc_)?pb\.(d\.)?[cm]?[jt]s$|\.min\.(js|css)$|\.(js|css)\.map$)/;
 const GENERATED_DIRS = new Set(["__generated__", "_generated", "generated"]);
 
 const MOCK_NAME =
@@ -82,16 +83,24 @@ const DOCS_NAME = /\.(md|mdx|markdown|rst|adoc|txt)$/i;
 // Plain-text files that tools read as config or input, not prose.
 const NOT_DOCS_NAME = /^(requirements.*|constraints.*|CMakeLists|robots|llms)\.txt$/i;
 
+export type HideableChangedFileGroup = "tests" | "generated";
+
+/** Test support (mocks, fixtures) is hidden with the tests it serves. */
+export function hideableChangedFileGroup(path: string): HideableChangedFileGroup | null {
+  const kind = classifyChangedFile(path);
+  if (kind === "tests" || kind === "mocks") return "tests";
+  return kind === "generated" ? "generated" : null;
+}
+
+export function isTestChangedFile(path: string): boolean {
+  return hideableChangedFileGroup(path) === "tests";
+}
+
 /**
  * Sorts a changed file by its path alone, using common naming conventions. Lockfiles and build
  * output count as generated, and test support (mocks, fixtures, snapshots) is kept apart from the
  * tests themselves, and prose (Markdown, plain text) is its own kind, so a reviewer can see how much of a change is logic.
  */
-export function isTestChangedFile(path: string): boolean {
-  const kind = classifyChangedFile(path);
-  return kind === "tests" || kind === "mocks";
-}
-
 export function classifyChangedFile(path: string): ChangedFileKind {
   const segments = path.replaceAll("\\", "/").split("/");
   const name = segments.pop() ?? "";
