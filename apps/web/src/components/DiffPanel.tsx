@@ -47,6 +47,7 @@ import {
   useDiffPanelStore,
 } from "../diffPanelStore";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { generatedVerdict } from "@t3tools/shared/changedFileKind";
 import { filterChangedFiles } from "./diffs/changedFileFilter.logic";
 import { HideChangedFilesToggles } from "./diffs/HideChangedFilesToggles";
 import { useHiddenChangedFileGroups } from "./diffs/useHiddenChangedFileGroups";
@@ -433,6 +434,9 @@ export default function DiffPanel({
           ? "commit"
           : "branch-range"),
   );
+  const isGenerated = generatedVerdict(
+    isGitSelection ? selectedGitSource?.generatedPaths : undefined,
+  );
   const comparisonHeadRef = selectedGitSource?.headRef ?? gitStatusQuery.data?.refName ?? "HEAD";
   const comparisonBaseRef =
     selectedGitSource?.baseRef ??
@@ -671,6 +675,7 @@ export default function DiffPanel({
     renderableFiles.map(resolveFileDiffPath),
     hiddenFileGroups,
     [selectedFilePath],
+    isGenerated,
   );
   const isFileShown = (file: FileDiffMetadata) =>
     changedFileFilter.isShown(resolveFileDiffPath(file));
@@ -755,7 +760,13 @@ export default function DiffPanel({
     if (revealDiffFile(selectedFilePath)) {
       externalRevealRef.current = key;
     }
-  }, [collapseScopeKey, selectedFilePath, selectedFileRevealRequestId, revealDiffFile]);
+  }, [
+    collapseScopeKey,
+    selectedFilePath,
+    selectedFileRevealRequestId,
+    revealDiffFile,
+    externalRevealRef,
+  ]);
 
   const openDiffFile = (filePath: string) => {
     openDiffFilePrimaryAction({

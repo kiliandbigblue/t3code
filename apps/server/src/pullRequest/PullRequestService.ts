@@ -80,6 +80,7 @@ import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 
 import * as ProjectService from "../project/ProjectService.ts";
+import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as PullRequestFilesViewed from "../persistence/PullRequestFilesViewed.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
@@ -100,7 +101,7 @@ import {
 import * as PullRequestReadCache from "./PullRequestReadCache.ts";
 import * as PullRequestProviderRegistry from "./PullRequestProviderRegistry.ts";
 import * as ViewedFiles from "./pullRequestViewedFiles.ts";
-import { toChangeBreakdown } from "./pullRequestChangeBreakdown.ts";
+import { generatedVerdict, summarizeChangedFiles } from "@t3tools/shared/changedFileKind";
 
 export interface PullRequestMergeEvent extends PullRequestRef {
   readonly mergedAt: string;
@@ -748,6 +749,7 @@ export const make = Effect.gen(function* () {
   const toPullRequestError = toPullRequestErrorWith(requirementOf);
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const projects = yield* ProjectService.ProjectService;
+  const git = yield* GitVcsDriver.GitVcsDriver;
   const repositoryIdentities = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
   const sourceControlProviders = yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
   const rateLimits = yield* SourceControlRateLimit.SourceControlRateLimit;
@@ -2048,6 +2050,44 @@ export const make = Effect.gen(function* () {
       ),
     );
 
+  // Hosts do not say which files are generated, so the local clone decides. Headers are read
+  // only when the head commit has been fetched there; undefined means the clone could not say.
+  const readGeneratedPaths = (
+    cwd: string,
+    paths: ReadonlyArray<string>,
+    revision: string | undefined,
+  ): Effect.Effect<ReadonlyArray<string> | undefined> =>
+    git
+      .readGeneratedPaths({ cwd, paths, headersAt: revision === undefined ? null : { revision } })
+      .pipe(
+        Effect.tapError((error) => Effect.logDebug("Could not read generated files", error)),
+        Effect.orElseSucceed(() => undefined),
+      );
+
+  const withGeneratedPaths = (
+    cwd: string,
+    input: PullRequestDiffInput,
+    slice: PullRequestDiffResult,
+  ): Effect.Effect<PullRequestDiffResult> => {
+    // One withheld file's read takes its verdict from the page it was listed on.
+    if (input.path !== undefined) return Effect.succeed(slice);
+    const paths = [
+      ...parseDiffFilePaths(slice.patch).flatMap(
+        ({ oldPath, newPath }) => newPath ?? oldPath ?? [],
+      ),
+      ...(slice.omittedFileStats ?? []).map((file) => file.path),
+    ];
+    return readGeneratedPaths(
+      cwd,
+      paths,
+      input.commit ?? lastGoodSummary.peek(refCacheKey(input))?.headSha,
+    ).pipe(
+      Effect.map((generatedPaths) =>
+        generatedPaths === undefined ? slice : { ...slice, generatedPaths },
+      ),
+    );
+  };
+
   const diffUncached: PullRequestService["Service"]["diff"] = (input) =>
     requireProject(input).pipe(
       Effect.flatMap((project) =>
@@ -2069,7 +2109,12 @@ export const make = Effect.gen(function* () {
                   ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
                   ...(input.commit === undefined ? {} : { commit: input.commit }),
                 })
-                .pipe(Effect.mapError(toPullRequestError("diff")))
+                .pipe(
+                  Effect.mapError(toPullRequestError("diff")),
+                  Effect.flatMap((slice) =>
+                    withGeneratedPaths(project.project.workspaceRoot, input, slice),
+                  ),
+                )
             : Effect.fail(
                 new PullRequestOperationError({
                   operation: "diff",
@@ -3485,8 +3530,20 @@ export const make = Effect.gen(function* () {
             host: project.host,
             number: ref.number,
           }).pipe(
-            Effect.map(toChangeBreakdown),
             Effect.mapError(toPullRequestError("changeBreakdown")),
+            Effect.flatMap((stats) =>
+              stats.truncated
+                ? Effect.succeed(null)
+                : readGeneratedPaths(
+                    project.project.workspaceRoot,
+                    stats.files.map((file) => file.path),
+                    lastGoodSummary.peek(key)?.headSha,
+                  ).pipe(
+                    Effect.map((generatedPaths) =>
+                      summarizeChangedFiles(stats.files, generatedVerdict(generatedPaths)),
+                    ),
+                  ),
+            ),
           );
         }),
       );

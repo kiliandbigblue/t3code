@@ -4,6 +4,7 @@ export type ChangedFileKind = keyof NonNullable<PullRequestChangeBreakdown>;
 
 export function summarizeChangedFiles(
   files: ReadonlyArray<{ path: string; additions: number; deletions: number }>,
+  isGenerated: (path: string) => boolean = isGeneratedPath,
 ): NonNullable<PullRequestChangeBreakdown> {
   const empty = () => ({ additions: 0, deletions: 0 });
   const breakdown = {
@@ -14,7 +15,7 @@ export function summarizeChangedFiles(
     docs: empty(),
   };
   for (const file of files) {
-    const bucket = breakdown[classifyChangedFile(file.path)];
+    const bucket = breakdown[classifyChangedFile(file.path, isGenerated)];
     bucket.additions += file.additions;
     bucket.deletions += file.deletions;
   }
@@ -86,8 +87,11 @@ const NOT_DOCS_NAME = /^(requirements.*|constraints.*|CMakeLists|robots|llms)\.t
 export type HideableChangedFileGroup = "tests" | "generated";
 
 /** Test support (mocks, fixtures) is hidden with the tests it serves. */
-export function hideableChangedFileGroup(path: string): HideableChangedFileGroup | null {
-  const kind = classifyChangedFile(path);
+export function hideableChangedFileGroup(
+  path: string,
+  isGenerated: (path: string) => boolean = isGeneratedPath,
+): HideableChangedFileGroup | null {
+  const kind = classifyChangedFile(path, isGenerated);
   if (kind === "tests" || kind === "mocks") return "tests";
   return kind === "generated" ? "generated" : null;
 }
@@ -96,18 +100,42 @@ export function isTestChangedFile(path: string): boolean {
   return hideableChangedFileGroup(path) === "tests";
 }
 
-/**
- * Sorts a changed file by its path alone, using common naming conventions. Lockfiles and build
- * output count as generated, and test support (mocks, fixtures, snapshots) is kept apart from the
- * tests themselves, and prose (Markdown, plain text) is its own kind, so a reviewer can see how much of a change is logic.
- */
-export function classifyChangedFile(path: string): ChangedFileKind {
+function pathParts(path: string) {
   const segments = path.replaceAll("\\", "/").split("/");
   const name = segments.pop() ?? "";
   const dirs = segments.map((segment) => segment.toLowerCase());
-  const inDir = (set: ReadonlySet<string>) => dirs.some((dir) => set.has(dir));
-  if (GENERATED_FILES.has(name.toLowerCase()) || GENERATED_NAME.test(name) || inDir(GENERATED_DIRS))
-    return "generated";
+  return { name, inDir: (set: ReadonlySet<string>) => dirs.some((dir) => set.has(dir)) };
+}
+
+/** The naming-convention guess, used when nothing better (attributes, file header) is known. */
+export function isGeneratedPath(path: string): boolean {
+  const { name, inDir } = pathParts(path);
+  return (
+    GENERATED_FILES.has(name.toLowerCase()) || GENERATED_NAME.test(name) || inDir(GENERATED_DIRS)
+  );
+}
+
+/** The server's `generatedPaths` lists as a verdict, or the naming guess when any list is unknown. */
+export function generatedVerdict(
+  ...pathLists: ReadonlyArray<ReadonlyArray<string> | undefined>
+): (path: string) => boolean {
+  if (pathLists.some((paths) => paths === undefined)) return isGeneratedPath;
+  const generated = new Set(pathLists.flatMap((paths) => paths ?? []));
+  return (path) => generated.has(path);
+}
+
+/**
+ * Sorts a changed file using common naming conventions, unless the caller already knows which
+ * files are generated. Lockfiles and build output count as generated, and test support (mocks,
+ * fixtures, snapshots) is kept apart from the tests themselves, and prose (Markdown, plain text)
+ * is its own kind, so a reviewer can see how much of a change is logic.
+ */
+export function classifyChangedFile(
+  path: string,
+  isGenerated: (path: string) => boolean = isGeneratedPath,
+): ChangedFileKind {
+  if (isGenerated(path)) return "generated";
+  const { name, inDir } = pathParts(path);
   if (MOCK_NAME.test(name) || inDir(MOCK_DIRS)) return "mocks";
   if (TEST_NAME.test(name) || CLASS_TEST_NAME.test(name) || inDir(TEST_DIRS)) return "tests";
   if (DOCS_NAME.test(name) && !NOT_DOCS_NAME.test(name)) return "docs";

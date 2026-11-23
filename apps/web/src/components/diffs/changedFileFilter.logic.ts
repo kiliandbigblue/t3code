@@ -17,12 +17,13 @@ export function filterChangedFiles(
   paths: ReadonlyArray<string>,
   hidden: HiddenChangedFileGroups,
   keptPaths: ReadonlyArray<string | null | undefined>,
+  isGenerated: (path: string) => boolean,
 ) {
   const total = { tests: 0, generated: 0 };
   const hiddenCount = { tests: 0, generated: 0 };
   const hiddenPaths = new Set<string>();
   for (const path of paths) {
-    const group = hideableChangedFileGroup(path);
+    const group = hideableChangedFileGroup(path, isGenerated);
     if (group === null) continue;
     total[group] += 1;
     if (!hidden[group] || keptPaths.includes(path)) continue;

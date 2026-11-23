@@ -375,6 +375,16 @@ export class GitVcsDriver extends Context.Service<
     readonly getReviewDiffFileContents: (
       input: ReviewDiffFileContentsInput,
     ) => Effect.Effect<ReviewDiffFileContentsResult, GitCommandError>;
+    /**
+     * The repository-relative `paths` that are generated: `linguist-generated` decides, then a
+     * generator banner near the top, then the file name.
+     */
+    readonly readGeneratedPaths: (input: {
+      readonly cwd: string;
+      readonly paths: ReadonlyArray<string>;
+      /** Where file headers are read: a revision, the working tree, or nowhere. */
+      readonly headersAt: { readonly revision: string } | "working-tree" | null;
+    }) => Effect.Effect<ReadonlyArray<string>, GitCommandError>;
     readonly readConfigValue: (
       cwd: string,
       key: string,

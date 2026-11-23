@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { classifyChangedFile } from "./changedFileKind.ts";
+import { classifyChangedFile, generatedVerdict } from "./changedFileKind.ts";
 
 describe("classifyChangedFile", () => {
   it.each([
@@ -35,5 +35,16 @@ describe("classifyChangedFile", () => {
     ["tests/README.md", "tests"],
   ] as const)("%s is %s", (path, kind) => {
     expect(classifyChangedFile(path)).toBe(kind);
+  });
+
+  it("lets a known verdict override the naming guess", () => {
+    const isGenerated = generatedVerdict(["store/store.go"], []);
+    expect(classifyChangedFile("store/store.go", isGenerated)).toBe("generated");
+    expect(classifyChangedFile("pnpm-lock.yaml", isGenerated)).toBe("code");
+    expect(classifyChangedFile("src/agent_test.go", isGenerated)).toBe("tests");
+    // One unknown list leaves every file to the naming guess.
+    expect(classifyChangedFile("pnpm-lock.yaml", generatedVerdict([], undefined))).toBe(
+      "generated",
+    );
   });
 });

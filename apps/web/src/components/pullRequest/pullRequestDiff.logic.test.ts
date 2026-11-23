@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { describe, expect, it } from "vite-plus/test";
 
-import { getFileViewedRange, isLineInFileDiff } from "./pullRequestDiff.logic";
+import { getFileViewedRange, isLineInFileDiff, isSameDiffPage } from "./pullRequestDiff.logic";
 
 function fileWithHunks(
   hunks: ReadonlyArray<{
@@ -48,5 +48,23 @@ describe("getFileViewedRange", () => {
     expect(getFileViewedRange(files, "a.ts", null)).toEqual([files[1]]);
     expect(getFileViewedRange(files, "a.ts", "removed.ts")).toEqual([files[1]]);
     expect(getFileViewedRange(files, "removed.ts", "a.ts")).toEqual([]);
+  });
+});
+
+describe("isSameDiffPage", () => {
+  const page = {
+    patch: "diff --git a/store.go b/store.go",
+    truncated: false,
+    nextCursor: null,
+    omittedFileStats: [{ path: "pnpm-lock.yaml", additions: 1, deletions: 1 }],
+  };
+
+  it.each([
+    { next: { ...page }, same: true },
+    { next: { ...page, omittedFileStats: [] }, same: false },
+    // Generated-file verdicts can arrive on a later read of an unchanged patch.
+    { next: { ...page, generatedPaths: ["store.go"] }, same: false },
+  ])("is $same for $next", ({ next, same }) => {
+    expect(isSameDiffPage(page, next)).toBe(same);
   });
 });
