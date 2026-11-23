@@ -45,6 +45,12 @@ import { parseT3ProjectFile } from "@t3tools/shared/t3ProjectFile";
 import { resolveProjectFileBackedSetting } from "@t3tools/shared/projectSettings";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
+import {
+  GENERATED_HEADER_PATTERN,
+  parseGeneratedHeaderMatches,
+  parseLinguistGenerated,
+  selectGeneratedPaths,
+} from "./generatedFiles.ts";
 import { removeEmptyDirectory, type RemoveEmptyDirectoryError } from "./removeEmptyDirectory.ts";
 import { VcsAutomaticFetchInterval } from "./VcsAutomaticFetchInterval.ts";
 import {
@@ -4196,6 +4202,25 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             }),
         ),
       );
+    // A one-file read leaves the verdicts to the file list it was picked from.
+    const readGenerated = (
+      paths: ReadonlyArray<string>,
+      headersAt: { readonly revision: string } | "working-tree",
+    ) =>
+      input.file
+        ? Effect.succeed(null)
+        : readGeneratedPathsAtRoot({ cwd, paths, headersAt }).pipe(
+            Effect.map((generatedPaths) => new Set(generatedPaths)),
+            Effect.tapError((error) => Effect.logDebug("Could not read generated files", error)),
+            Effect.orElseSucceed(() => null),
+          );
+    const generatedPathsOf = (
+      files: ReadonlyArray<ReviewDiffFileStat> | undefined,
+      generated: ReadonlySet<string> | null,
+    ) =>
+      files === undefined || generated === null
+        ? {}
+        : { generatedPaths: files.flatMap(({ path }) => (generated.has(path) ? [path] : [])) };
     if (input.commitSha !== undefined || input.file?.sourceKind === "commit") {
       if (!input.commitSha || (input.file && input.file.sourceKind !== "commit")) {
         return yield* reviewCommitError(cwd, "Selected commit request is invalid.");
@@ -4223,6 +4248,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
               { maxOutputBytes: patchLimit, appendTruncationMarker: true },
             );
       const diffHash = yield* hashDiff(patch.stdout, files);
+      const generated = generatedPathsOf(
+        files,
+        yield* readGenerated(
+          files.map((file) => file.path),
+          { revision: commit.sha },
+        ),
+      );
       return {
         cwd: input.cwd,
         generatedAt: yield* DateTime.now,
@@ -4236,6 +4268,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             headRef: commit.sha,
             diff: patch.stdout,
             files,
+            ...generated,
             diffHash,
             truncated: patch.stdoutTruncated,
             ...(input.metadataOnly && !input.file ? { patchesDeferred: true } : {}),
@@ -4334,6 +4367,11 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       hashDiff(dirtyDiff, dirtyFiles ?? []),
       hashDiff(baseDiff, baseFiles ?? []),
     ]);
+    // Both sources diff against the working tree, so one read there covers both file lists.
+    const generated = yield* readGenerated(
+      [...new Set([...(dirtyFiles ?? []), ...(baseFiles ?? [])].map((file) => file.path))],
+      "working-tree",
+    );
 
     const sources: ReviewDiffPreviewSource[] = [
       {
@@ -4344,6 +4382,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         headRef: null,
         diff: dirtyDiff,
         ...(dirtyFiles === undefined ? {} : { files: dirtyFiles }),
+        ...generatedPathsOf(dirtyFiles, generated),
         diffHash: dirtyDiffHash,
         truncated: dirtyTrackedResult.stdoutTruncated,
         ...(input.metadataOnly && !input.file && dirtyFiles !== undefined
@@ -4358,6 +4397,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         headRef: repository.currentBranch ?? "HEAD",
         diff: baseDiff,
         ...(baseFiles === undefined ? {} : { files: baseFiles }),
+        ...generatedPathsOf(baseFiles, generated),
         diffHash: baseDiffHash,
         truncated: baseResult.stdoutTruncated,
         ...(input.metadataOnly && !input.file && baseFiles !== undefined
@@ -4374,6 +4414,92 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         : sources,
       ...(input.trackedOnly ? { incomplete: true } : {}),
     };
+  });
+
+  /** Like `readGeneratedPaths`, for a `cwd` already known to be the work tree's root. */
+  const readGeneratedPathsAtRoot: GitVcsDriver.GitVcsDriver["Service"]["readGeneratedPaths"] =
+    Effect.fn("readGeneratedPathsAtRoot")(function* (input) {
+      if (input.paths.length === 0) return [];
+      const cwd = input.cwd;
+      const attributes = yield* executeGit(
+        "GitVcsDriver.readGeneratedPaths.attributes",
+        cwd,
+        ["check-attr", "-z", "--stdin", "linguist-generated"],
+        {
+          stdin: input.paths.map((path) => `${path}\0`).join(""),
+          maxOutputBytes: REVIEW_METADATA_MAX_OUTPUT_BYTES,
+        },
+      );
+      const revision =
+        input.headersAt === null || input.headersAt === "working-tree"
+          ? null
+          : input.headersAt.revision;
+      // git grep takes pathspecs as arguments, so long lists are split to stay under ARG_MAX.
+      const headerReads =
+        input.headersAt === null
+          ? []
+          : Array.from({ length: Math.ceil(input.paths.length / 500) }, (_, chunk) =>
+              input.paths.slice(chunk * 500, chunk * 500 + 500),
+            );
+      const headers = yield* Effect.forEach(
+        headerReads,
+        (paths) =>
+          executeGit(
+            "GitVcsDriver.readGeneratedPaths.headers",
+            cwd,
+            [
+              "grep",
+              "-z",
+              "-n",
+              "-o",
+              // The first match is the only one that can sit within the header lines.
+              "-m",
+              "1",
+              "-I",
+              "-i",
+              "-E",
+              "--no-color",
+              ...(revision === null ? ["--untracked"] : []),
+              "-e",
+              GENERATED_HEADER_PATTERN,
+              ...(revision === null ? [] : [revision]),
+              "--",
+              ...paths.map((path) => `:(top,literal)${path}`),
+            ],
+            { allowNonZeroExit: true, maxOutputBytes: REVIEW_METADATA_MAX_OUTPUT_BYTES },
+          ).pipe(
+            // Exit 1 means no match. A revision missing from the clone (or a Git older than 2.38,
+            // without `-m`) fails, which leaves headers unknown rather than failing the read.
+            Effect.flatMap((result) =>
+              result.exitCode === 0 || result.exitCode === 1
+                ? Effect.succeed([...parseGeneratedHeaderMatches(result.stdout, revision)])
+                : Effect.logDebug("Could not read generated file headers", result.stderr).pipe(
+                    Effect.as([]),
+                  ),
+            ),
+          ),
+        { concurrency: 4 },
+      );
+      return selectGeneratedPaths(
+        input.paths,
+        parseLinguistGenerated(attributes.stdout),
+        new Set(headers.flat()),
+      );
+    });
+
+  const readGeneratedPaths: GitVcsDriver.GitVcsDriver["Service"]["readGeneratedPaths"] = Effect.fn(
+    "readGeneratedPaths",
+  )(function* (input) {
+    const root = (yield* resolveRepositoryPaths(input.cwd))?.worktreeRoot;
+    if (!root) {
+      return yield* new GitCommandError({
+        operation: "GitVcsDriver.readGeneratedPaths",
+        command: "git rev-parse",
+        cwd: input.cwd,
+        detail: "Not inside a Git work tree.",
+      });
+    }
+    return yield* readGeneratedPathsAtRoot({ ...input, cwd: root });
   });
 
   const reviewDiffFileError = (
@@ -6313,6 +6439,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     getReviewBranchCommits,
     getReviewDiffPreview,
     getReviewDiffFileContents,
+    readGeneratedPaths,
     readConfigValue,
     readBranchBase,
     resolveBranchName,

@@ -364,17 +364,20 @@ describe("resolveChangesTotals", () => {
         files: [
           { path: "a.ts", previousPath: null, additions: 4, deletions: 1 },
           { path: "a.test.ts", previousPath: null, additions: 2, deletions: 0 },
+          { path: "store.go", previousPath: null, additions: 3, deletions: 0 },
         ],
+        // The panel's generated verdict, so the row counts what the panel hides.
+        generatedPaths: ["store.go"],
       }),
       {
-        insertions: 6,
+        insertions: 9,
         deletions: 1,
         baseRef: "release",
         breakdown: {
           code: { additions: 4, deletions: 1 },
           tests: { additions: 2, deletions: 0 },
           mocks: { additions: 0, deletions: 0 },
-          generated: { additions: 0, deletions: 0 },
+          generated: { additions: 3, deletions: 0 },
           docs: { additions: 0, deletions: 0 },
         },
       },

@@ -1,4 +1,4 @@
-import { SourceControlProviderKind } from "@t3tools/contracts";
+import { GitCommandError, SourceControlProviderKind } from "@t3tools/contracts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as KeyValueStore from "effect/persistence/KeyValueStore";
@@ -24,6 +24,7 @@ import * as ServerSettingsService from "../serverSettings.ts";
 import { PullRequestOperationError } from "@t3tools/contracts";
 
 import * as ProjectService from "../project/ProjectService.ts";
+import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as PullRequestFilesViewed from "../persistence/PullRequestFilesViewed.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
@@ -326,6 +327,7 @@ function makeService(input: {
   readonly resolveHandle?: SourceControlProviderRegistry.SourceControlProviderRegistry["Service"]["resolveHandle"];
   readonly resolveRepositoryIdentity?: RepositoryIdentityResolver.RepositoryIdentityResolver["Service"]["resolve"];
   readonly onProjectRead?: () => void;
+  readonly readGeneratedPaths?: GitVcsDriver.GitVcsDriver["Service"]["readGeneratedPaths"];
 }) {
   // Build in the test scope; per-call Effect.provide would close the marks database on service acquisition.
   return Effect.flatMap(
@@ -363,6 +365,19 @@ function makeService(input: {
         }),
         Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({
           resolve: input.resolveRepositoryIdentity ?? (() => Effect.succeed(null)),
+        }),
+        Layer.mock(GitVcsDriver.GitVcsDriver)({
+          readGeneratedPaths:
+            input.readGeneratedPaths ??
+            ((request) =>
+              Effect.fail(
+                new GitCommandError({
+                  operation: "test",
+                  command: "git",
+                  cwd: request.cwd,
+                  detail: "No repository in tests.",
+                }),
+              )),
         }),
         SourceControlRateLimit.layer,
         PullRequestFilesViewed.layer.pipe(Layer.provide(SqlitePersistence.layerMemory)),
@@ -3282,6 +3297,87 @@ it.effect("reads the fresh diff when detail or summary discovers a changed revis
     yield* service.summary(reference, { recoverTransientFailure: false });
     assert.strictEqual((yield* service.diff(reference)).patch, patch);
     assert.strictEqual(diffCalls, 3);
+  }),
+);
+
+it.effect("marks generated files in a diff page from the commit's local clone", () =>
+  Effect.gen(function* () {
+    const requests: Array<
+      Parameters<GitVcsDriver.GitVcsDriver["Service"]["readGeneratedPaths"]>[0]
+    > = [];
+    const service = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          getDiff: () =>
+            Effect.succeed({
+              patch: [
+                "diff --git a/store/store.go b/store/store.go",
+                "--- a/store/store.go",
+                "+++ b/store/store.go",
+                "@@ -1 +1 @@",
+                "-a",
+                "+b",
+                "diff --git a/src/app.ts b/src/app.ts",
+                "--- a/src/app.ts",
+                "+++ b/src/app.ts",
+                "@@ -1 +1 @@",
+                "-a",
+                "+b",
+                "",
+              ].join("\n"),
+              truncated: false,
+              nextCursor: null,
+              omittedFileStats: [{ path: "pnpm-lock.yaml", additions: 9, deletions: 9 }],
+            }),
+        }),
+      ],
+      readGeneratedPaths: (request) =>
+        Effect.sync(() => {
+          requests.push(request);
+          return ["store/store.go", "pnpm-lock.yaml"];
+        }),
+    });
+    const ref = { projectId: "p1" as ProjectId, repository: "acme/web", number: 10 };
+    const result = yield* service.diff({ ...ref, commit: "abc123" });
+    assert.deepStrictEqual(result.generatedPaths, ["store/store.go", "pnpm-lock.yaml"]);
+    assert.deepStrictEqual(requests, [
+      {
+        cwd: "/a",
+        paths: ["store/store.go", "src/app.ts", "pnpm-lock.yaml"],
+        headersAt: { revision: "abc123" },
+      },
+    ]);
+  }),
+);
+
+it.effect("counts the change breakdown with the local clone's generated verdict", () =>
+  Effect.gen(function* () {
+    const service = yield* makeService({
+      projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          getFileStats: () =>
+            Effect.succeed({
+              files: [
+                { path: "store/store.go", additions: 5, deletions: 1 },
+                { path: "src/app.ts", additions: 2, deletions: 0 },
+              ],
+              truncated: false,
+            }),
+        }),
+      ],
+      readGeneratedPaths: () => Effect.succeed(["store/store.go"]),
+    });
+    const breakdown = yield* service.changeBreakdown({
+      projectId: "p1" as ProjectId,
+      repository: "acme/web",
+      number: 10,
+    });
+    assert.deepStrictEqual(breakdown && [breakdown.generated, breakdown.code], [
+      { additions: 5, deletions: 1 },
+      { additions: 2, deletions: 0 },
+    ]);
   }),
 );
 

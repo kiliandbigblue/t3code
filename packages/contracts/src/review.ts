@@ -77,6 +77,8 @@ export const ReviewDiffPreviewSource = Schema.Struct({
   truncated: Schema.Boolean,
   patchesDeferred: Schema.optionalKey(Schema.Boolean),
   files: Schema.optionalKey(Schema.Array(ReviewDiffFileStat)),
+  /** Paths of `files` that are generated. Absent when unknown, so clients guess from names. */
+  generatedPaths: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type ReviewDiffPreviewSource = typeof ReviewDiffPreviewSource.Type;
 

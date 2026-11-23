@@ -747,6 +747,8 @@ export const PullRequestDiffResult = Schema.Struct({
   omittedFileStats: Schema.optional(Schema.Array(PullRequestOmittedFileStat)),
   /** On the first page: files this diff withholds can be read one at a time with `path`. */
   withheldFilesReadable: Schema.optional(Schema.Boolean),
+  /** Paths in this slice that are generated. Absent when unknown, so clients guess from names. */
+  generatedPaths: Schema.optional(Schema.Array(Schema.String)),
 });
 export type PullRequestDiffResult = typeof PullRequestDiffResult.Type;
 

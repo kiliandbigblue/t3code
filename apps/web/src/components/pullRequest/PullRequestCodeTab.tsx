@@ -111,6 +111,7 @@ import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
 import { FileExplorerPane } from "../files/FileExplorerPane";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
+import { generatedVerdict } from "@t3tools/shared/changedFileKind";
 import { filterChangedFiles } from "../diffs/changedFileFilter.logic";
 import {
   HiddenChangedFilesButtons,
@@ -144,7 +145,7 @@ import {
 } from "./PullRequestReviewAnnotation";
 import { pullRequestCompletionScope } from "./PullRequestMarkdownTextarea";
 import { DiffStatBlocks } from "../chat/DiffStatLabel";
-import { getFileViewedRange, isLineInFileDiff } from "./pullRequestDiff.logic";
+import { getFileViewedRange, isLineInFileDiff, isSameDiffPage } from "./pullRequestDiff.logic";
 import { PullRequestDiffStat, PullRequestMetaLine } from "./pullRequestPresentation";
 import { PullRequestDiffUnavailableState } from "./PullRequestDiffUnavailableState";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
@@ -549,23 +550,7 @@ function PullRequestCodeTab({
         return { key: scopeKey, cursor, slices: [...slices, next] };
       }
       const existing = slices[index];
-      if (
-        existing !== undefined &&
-        existing.patch === next.patch &&
-        existing.truncated === next.truncated &&
-        existing.nextCursor === next.nextCursor &&
-        existing.source.withheldFilesReadable === next.source.withheldFilesReadable &&
-        existing.omittedFileStats.length === next.omittedFileStats.length &&
-        existing.omittedFileStats.every((file, index) => {
-          const refreshed = next.omittedFileStats[index];
-          return (
-            refreshed !== undefined &&
-            refreshed.path === file.path &&
-            refreshed.additions === file.additions &&
-            refreshed.deletions === file.deletions
-          );
-        })
-      ) {
+      if (existing !== undefined && isSameDiffPage(existing.source, next.source)) {
         return previous;
       }
       // Drop later slices when replacing a changed page; their cursors target the old diff.
@@ -766,6 +751,7 @@ function PullRequestCodeTab({
     loadedFiles.map(resolveFileDiffPath),
     hiddenFileGroups,
     [revealRequest?.path, linkPath],
+    generatedVerdict(...loadedSlices.map((slice) => slice.source.generatedPaths)),
   );
   const files = loadedFiles.filter((file) => changedFileFilter.isShown(resolveFileDiffPath(file)));
   const filePaths = files.map((file) => resolveFileDiffPath(file));

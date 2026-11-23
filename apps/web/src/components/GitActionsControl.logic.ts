@@ -5,7 +5,7 @@ import type {
   ReviewDiffPreviewSource,
   VcsStatusResult,
 } from "@t3tools/contracts";
-import { summarizeChangedFiles } from "@t3tools/shared/changedFileKind";
+import { generatedVerdict, summarizeChangedFiles } from "@t3tools/shared/changedFileKind";
 import { isTemporaryWorktreeBranch } from "@t3tools/shared/git";
 import { msg } from "gt-react";
 import { m, type MessageResolver } from "../i18n/messages";
@@ -669,7 +669,10 @@ export function resolveChangesTotals(
       insertions,
       deletions,
       baseRef: branchPreview.baseRef,
-      breakdown: summarizeChangedFiles(branchPreview.files),
+      breakdown: summarizeChangedFiles(
+        branchPreview.files,
+        generatedVerdict(branchPreview.generatedPaths),
+      ),
     };
   }
   if (!status) return null;
