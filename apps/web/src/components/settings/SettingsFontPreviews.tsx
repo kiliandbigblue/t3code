@@ -13,6 +13,7 @@ import { EMPTY_COMPOSER_CONTEXT_RECORDS } from "../composerContextPresentation";
 import { terminalThemeFromApp } from "../ThreadTerminalDrawer";
 import { useRenderedAppearance, useTheme } from "../../hooks/useTheme";
 import { DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
+import { DIFF_VIEW_UNSAFE_CSS } from "../diffs/StyledDiffCodeView";
 import {
   GITHUB_DIFF_OPTIONS,
   resolveDiffThemeName,
@@ -81,11 +82,12 @@ function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
       diffStyle: "unified",
       theme,
       preferredHighlighter: PREFERRED_HIGHLIGHTER,
+      unsafeCSS: DIFF_VIEW_UNSAFE_CSS,
     },
   }).then((results) => results.map((result) => result.prerenderedHTML));
 }
 
-// Unlayered shadow-root rules override Pierre surfaces with app code tokens to match the diff panel.
+// The diff panel's CSS styles the rows; the bare static host still needs the app's code tokens.
 const DIFF_PREVIEW_THEME_BRIDGE = `
   :host {
     color: var(--code-foreground);
@@ -94,10 +96,6 @@ const DIFF_PREVIEW_THEME_BRIDGE = `
     --diffs-bg: var(--code-background);
     --diffs-light-bg: var(--code-background);
     --diffs-dark-bg: var(--code-background);
-  }
-  [data-diffs-header] {
-    background-color: var(--code-background);
-    color: var(--code-foreground);
   }
 `;
 
