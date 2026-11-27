@@ -134,7 +134,7 @@ index 96d4fb137ea683b66381b1ce6e47e8708a89366c..13f2564897a5bf53a8f311300003b3ea
  	/**
  	* Re-measure the '0' character width against the font that is loaded right
 diff --git a/dist/layout/DiffLayout.js b/dist/layout/DiffLayout.js
-index 32cf5585c9ce2153c7fd9fa458d5d406010674b5..590877b7785f334a7f452f32411b9c76d20dda82 100644
+index 32cf5585c9ce2153c7fd9fa458d5d406010674b5..d20b3e0b21b51dad94793205f730cd26ebb59dc7 100644
 --- a/dist/layout/DiffLayout.js
 +++ b/dist/layout/DiffLayout.js
 @@ -441,7 +441,8 @@ var DiffLayout = class {
@@ -147,6 +147,19 @@ index 32cf5585c9ce2153c7fd9fa458d5d406010674b5..590877b7785f334a7f452f32411b9c76
  		const separator = () => createSeparator({
  			type: hunkSeparators,
  			content,
+@@ -480,7 +481,11 @@ var DiffLayout = class {
+ 		const content = this.#line(base, ranges, row.contentProperties, row.lineNumber, row.altLineNumber, row.lineIndexText);
+ 		return {
+ 			key: row.key,
+-			gutter: this.#cells.gutter(row.key, row.gutterLineType, row.lineNumber, row.lineIndexText, row.gutterProperties),
++			// t3code: the gutter carries data-alt-line like its content cell, so CSS can draw GitHub's old-number column in unified diffs.
++			gutter: this.#cells.gutter(row.key, row.gutterLineType, row.lineNumber, row.lineIndexText, row.altLineNumber == null ? row.gutterProperties : {
++				...row.gutterProperties,
++				"data-alt-line": row.altLineNumber
++			}),
+ 			content
+ 		};
+ 	}
 diff --git a/dist/utils/parsePatchFiles.js b/dist/utils/parsePatchFiles.js
 index 48568bd6f669ba4826de17ba03caad466e1f0000..f27123f7c812c728ee8393792665ba288141771c 100644
 --- a/dist/utils/parsePatchFiles.js

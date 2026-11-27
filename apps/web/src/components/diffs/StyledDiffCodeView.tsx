@@ -91,6 +91,45 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   background-image: none !important;
 }
 
+/* GitHub's gutter: numbers 8px from the left and 16px clear of the code; the +/- sits 8px into
+   the code cell in the text colour, and code starts at 20px. */
+[data-column-number] {
+  padding-inline: 8px 16px !important;
+}
+
+[data-indicators="classic"] :is([data-line], [data-no-newline]) {
+  padding-inline-start: 20px !important;
+}
+
+[data-indicators="classic"] :is([data-line], [data-no-newline])[data-line-type^="change-"]::before {
+  left: 8px !important;
+  color: var(--code-foreground) !important;
+}
+
+/* Unified gutters draw the old line number (data-alt-line, patched in) as GitHub's own column
+   before the new one; added lines leave it empty. A deleted line's only number is the old one. */
+[data-indicators="classic"][data-diff-type="single"] [data-column-number]::before {
+  content: attr(data-alt-line);
+  display: inline-block;
+  min-width: var(
+    --diffs-min-number-column-width,
+    var(--diffs-min-number-column-width-default, 3ch)
+  );
+  margin-inline-end: 24px;
+  text-align: right;
+}
+
+[data-indicators="classic"][data-diff-type="single"]
+  [data-column-number][data-line-type="change-deletion"]::before {
+  content: attr(data-column-number);
+}
+
+[data-indicators="classic"][data-diff-type="single"]
+  [data-column-number][data-line-type="change-deletion"]
+  [data-line-number-content] {
+  visibility: hidden;
+}
+
 [data-file-info] {
   background-color: var(--code-background) !important;
   border-block-color: transparent !important;

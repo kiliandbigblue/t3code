@@ -313,6 +313,8 @@ export const DIFF_SURFACE_THEME_UNSAFE_CSS = `
 [data-virtualizer-buffer] {
   --diffs-header-font-family: var(--font-sans) !important;
   --diffs-font-family: var(--font-mono) !important;
+  /* Pierre's default is 2; GitHub draws tabs 4 wide, which is what makes Go read the same. */
+  --diffs-tab-size: 4;
   --diffs-bg: var(--code-background) !important;
   --diffs-light-bg: var(--code-background) !important;
   --diffs-dark-bg: var(--code-background) !important;
